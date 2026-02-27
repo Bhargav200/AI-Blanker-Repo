@@ -23,3 +23,10 @@ database/*.db
 .trae/
 .idea/
 .DS_Store
+
+# Documentation / Planning (Internal)
+MVP.md
+PRD.md
+Database Design.md
+UI DEVELOPMENT Plan.md
+Backend plan Implementation.md
