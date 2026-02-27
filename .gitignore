@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Storage (Sensitive data/logs)
+storage/input/*
+storage/output/*
+storage/logs/*
+storage/temp/*
+!storage/input/.gitkeep
+!storage/output/.gitkeep
+!storage/logs/.gitkeep
+!storage/temp/.gitkeep
+
+# Database
+database/*.db
+
+# IDEs
+.vscode/
+.trae/
+.idea/
+.DS_Store
