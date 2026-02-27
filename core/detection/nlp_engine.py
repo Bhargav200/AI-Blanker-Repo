@@ -8,15 +8,8 @@ class NLPEngine:
         try:
             self.nlp = spacy.load(model)
         except OSError:
-            print(f"Warning: Model {model} not found. Trying to download en_core_web_sm...")
-            try:
-                import subprocess
-                subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
-                self.nlp = spacy.load("en_core_web_sm")
-            except Exception as e:
-                print(f"Error downloading fallback model: {str(e)}")
-                # Create a blank English model if all else fails
-                self.nlp = spacy.blank("en")
+            print(f"Warning: Model {model} not found. Using blank 'en' model for now.")
+            self.nlp = spacy.blank("en")
 
     def detect(self, text: str) -> List[Dict[str, Any]]:
         doc = self.nlp(text)

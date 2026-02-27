@@ -13,6 +13,7 @@ from core.detection.merge_engine import MergeEngine
 from core.scoring.risk_classifier import RiskClassifier
 from core.redaction.text_redactor import TextRedactor
 from core.redaction.image_redactor import ImageRedactor
+from core.redaction.visualizer import RedactionVisualizer
 
 class JobOrchestrator:
     def __init__(self, db: Session):
@@ -23,6 +24,7 @@ class JobOrchestrator:
         self.merge_engine = MergeEngine()
         self.risk_classifier = RiskClassifier()
         self.image_redactor = ImageRedactor()
+        self.visualizer = RedactionVisualizer()
 
     def run_job(self, job_id: int, config: Dict[str, Any]):
         job = self.db.query(Job).filter(Job.id == job_id).first()
@@ -46,6 +48,17 @@ class JobOrchestrator:
                     # 1. Parse file
                     parse_result = self.file_router.route_file(file_record.stored_input_path)
                     text = parse_result.get("text", "")
+                    file_record.raw_content = text
+                    
+                    # Generate visual preview for original (non-image)
+                    ext_lower = file_record.file_type.lower()
+                    if ext_lower not in ['.png', '.jpg', '.jpeg']:
+                        visual_in_filename = f"visual_in_{file_record.file_uuid}.png"
+                        visual_in_path = str(settings.OUTPUT_DIR / visual_in_filename)
+                        self.visualizer.text_to_image(text, visual_in_path)
+                        file_record.visual_input_path = visual_in_path
+                    else:
+                        file_record.visual_input_path = file_record.stored_input_path
                     
                     # 2. Detect PII
                     regex_entities = self.regex_engine.detect(text)
@@ -71,21 +84,33 @@ class JobOrchestrator:
                     file_record.risk_level = self.risk_classifier.classify_file(filtered_entities)
                     
                     # 6. Redaction
-                    if file_record.file_type in ['.png', '.jpg', '.jpeg']:
+                    ext_lower = file_record.file_type.lower()
+                    if ext_lower in ['.png', '.jpg', '.jpeg']:
                         # Image redaction
                         output_filename = f"redacted_{file_record.file_uuid}{os.path.splitext(file_record.original_filename)[1]}"
                         output_path = str(settings.OUTPUT_DIR / output_filename)
                         self.image_redactor.redact(file_record.stored_input_path, parse_result.get("boxes", []), output_path)
                         file_record.stored_output_path = output_path
+                        file_record.visual_output_path = output_path
                         file_record.ocr_applied = True
+                        
+                        # Store redacted text for images as well (text representation)
+                        file_record.redacted_content = redactor.redact(text, filtered_entities)
                     else:
                         # Text redaction
                         redacted_text = redactor.redact(text, filtered_entities)
+                        file_record.redacted_content = redacted_text
                         output_filename = f"redacted_{file_record.file_uuid}{os.path.splitext(file_record.original_filename)[1]}"
                         output_path = str(settings.OUTPUT_DIR / output_filename)
                         with open(output_path, 'w', encoding='utf-8') as f:
                             f.write(redacted_text)
                         file_record.stored_output_path = output_path
+                        
+                        # Generate visual preview
+                        visual_filename = f"visual_{file_record.file_uuid}.png"
+                        visual_path = str(settings.OUTPUT_DIR / visual_filename)
+                        self.visualizer.text_to_image(redacted_text, visual_path)
+                        file_record.visual_output_path = visual_path
                     
                     # 7. Save entities to DB
                     for ent_data in filtered_entities:

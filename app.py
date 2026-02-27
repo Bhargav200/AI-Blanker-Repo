@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="AI PII Redactor", layout="wide")
 
@@ -123,8 +123,50 @@ elif choice == "Job History":
                 
                 if job['files']:
                     st.markdown("#### Files")
-                    df = pd.DataFrame(job['files'])
-                    st.table(df)
+                    for f in job['files']:
+                        with st.expander(f"📄 {f['filename']} (Risk: {f['risk_level']})"):
+                            col1, col2 = st.columns(2)
+                            
+                            # Fetch file details for comparison
+                            file_details_res = requests.get(f"{BASE_URL}/files/{f['id']}")
+                            if file_details_res.status_code == 200:
+                                file_details = file_details_res.json()
+                                
+                                with col1:
+                                    st.markdown("**Before (Original)**")
+                                    try:
+                                        # Fetch original visual image as bytes
+                                        img_res = requests.get(f"{BASE_URL}/files/{f['id']}/visual-original")
+                                        if img_res.status_code == 200 and len(img_res.content) > 0:
+                                            st.image(img_res.content, use_container_width=True)
+                                            st.success(f"Loaded original ({len(img_res.content)} bytes)")
+                                        else:
+                                            # Fallback to text area if visual-original is not available or not an image
+                                            st.text_area("Original", file_details.get('raw_content', ''), height=300, key=f"raw_{f['id']}")
+                                    except Exception as e:
+                                        st.text_area("Original", file_details.get('raw_content', ''), height=300, key=f"raw_{f['id']}")
+                                    
+                                with col2:
+                                    st.markdown("**After (Redacted Result)**")
+                                    try:
+                                        # Fetch visual redacted image as bytes
+                                        visual_res = requests.get(f"{BASE_URL}/files/{f['id']}/visual")
+                                        if visual_res.status_code == 200 and len(visual_res.content) > 0:
+                                            st.image(visual_res.content, use_container_width=True)
+                                            st.success(f"Loaded visual ({len(visual_res.content)} bytes)")
+                                        else:
+                                            st.error(f"Failed to load redacted image (Status: {visual_res.status_code}, Size: {len(visual_res.content) if visual_res else 'N/A'})")
+                                    except Exception as e:
+                                        st.error(f"Error loading redacted: {str(e)}")
+                                
+                                st.markdown("#### Detected Entities")
+                                if file_details.get('entities'):
+                                    ent_df = pd.DataFrame(file_details['entities'])
+                                    st.dataframe(ent_df[['text', 'type', 'confidence', 'risk_level']])
+                                else:
+                                    st.write("No entities detected.")
+                            else:
+                                st.error("Could not fetch file details.")
             else:
                 st.write("No jobs found.")
         else:

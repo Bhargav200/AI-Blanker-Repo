@@ -12,7 +12,9 @@ class File(Base):
     file_uuid = Column(String, unique=True, index=True, default=lambda: str(uuid.uuid4()))
     original_filename = Column(String)
     stored_input_path = Column(String)
+    visual_input_path = Column(String, nullable=True)
     stored_output_path = Column(String, nullable=True)
+    visual_output_path = Column(String, nullable=True)
     file_type = Column(String)
     file_size_bytes = Column(Integer)
     entity_count = Column(Integer, default=0)
@@ -22,6 +24,8 @@ class File(Base):
     average_confidence = Column(Float, default=0.0)
     risk_level = Column(String, default="Low")
     ocr_applied = Column(Boolean, default=False)
+    raw_content = Column(String, nullable=True)
+    redacted_content = Column(String, nullable=True)
     processing_time_ms = Column(Integer, default=0)
     status = Column(String, default="Success") # Success / Failed
     error_message = Column(String, nullable=True)

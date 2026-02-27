@@ -12,8 +12,12 @@ from models.report import BatchReport, FileReport, ComplianceSummary, Evaluation
 from core.job_orchestrator import JobOrchestrator
 from config.settings import settings
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title=settings.APP_NAME)
+
+# Mount storage for direct access (optional but helpful)
+app.mount("/storage", StaticFiles(directory=str(settings.BASE_DIR / "storage")), name="storage")
 
 # CORS Middleware
 app.add_middleware(
@@ -99,8 +103,16 @@ async def create_job(
     db.commit()
     
     # 3. Trigger job in background
-    orchestrator = JobOrchestrator(db)
-    background_tasks.add_task(orchestrator.run_job, job.id, config)
+    from database.db import SessionLocal
+    def run_job_wrapper(job_id, config):
+        db_job = SessionLocal()
+        try:
+            orchestrator = JobOrchestrator(db_job)
+            orchestrator.run_job(job_id, config)
+        finally:
+            db_job.close()
+
+    background_tasks.add_task(run_job_wrapper, job.id, config)
     
     return {"job_id": job.id, "job_uuid": job.job_uuid, "status": "Pending"}
 
@@ -123,12 +135,62 @@ def get_job_status(job_id: int, db: Session = Depends(get_db)):
             {
                 "id": f.id,
                 "filename": f.original_filename,
+                "file_type": f.file_type,
                 "status": f.status,
                 "entity_count": f.entity_count,
                 "risk_level": f.risk_level
             } for f in files
         ]
     }
+
+from fastapi.responses import FileResponse
+
+@app.get("/files/{file_id}/download/original")
+def download_original(file_id: int, db: Session = Depends(get_db)):
+    file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+    if not file_record or not os.path.exists(file_record.stored_input_path):
+        raise HTTPException(status_code=404, detail="Original file not found")
+    
+    # Determine media type
+    ext = os.path.splitext(file_record.original_filename)[1].lower()
+    media_type = "application/octet-stream"
+    if ext in ['.png', '.jpg', '.jpeg']:
+        media_type = f"image/{ext[1:]}"
+    elif ext == '.pdf':
+        media_type = "application/pdf"
+        
+    return FileResponse(file_record.stored_input_path, filename=file_record.original_filename, media_type=media_type)
+
+@app.get("/files/{file_id}/download/redacted")
+def download_redacted(file_id: int, db: Session = Depends(get_db)):
+    file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+    if not file_record or not file_record.stored_output_path or not os.path.exists(file_record.stored_output_path):
+        raise HTTPException(status_code=404, detail="Redacted file not found")
+    
+    ext = os.path.splitext(file_record.original_filename)[1]
+    filename = f"redacted_{file_record.original_filename}"
+    return FileResponse(file_record.stored_output_path, filename=filename)
+
+@app.get("/files/{file_id}/visual")
+def get_visual_redacted(file_id: int, db: Session = Depends(get_db)):
+    file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+    if not file_record or not file_record.visual_output_path or not os.path.exists(file_record.visual_output_path):
+        raise HTTPException(status_code=404, detail="Visual preview not found")
+    return FileResponse(file_record.visual_output_path, media_type="image/png")
+
+@app.get("/files/{file_id}/visual-original")
+def get_visual_original(file_id: int, db: Session = Depends(get_db)):
+    file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+    if not file_record or not file_record.visual_input_path or not os.path.exists(file_record.visual_input_path):
+        raise HTTPException(status_code=404, detail="Original visual preview not found")
+    
+    # Determine media type based on the file stored at visual_input_path
+    ext = os.path.splitext(file_record.visual_input_path)[1].lower()
+    media_type = "image/png"
+    if ext in ['.jpg', '.jpeg']:
+        media_type = "image/jpeg"
+        
+    return FileResponse(file_record.visual_input_path, media_type=media_type)
 
 @app.get("/files/{file_id}")
 def get_file_details(file_id: int, db: Session = Depends(get_db)):
@@ -144,6 +206,8 @@ def get_file_details(file_id: int, db: Session = Depends(get_db)):
         "file_type": file_record.file_type,
         "risk_level": file_record.risk_level,
         "entity_count": file_record.entity_count,
+        "raw_content": file_record.raw_content,
+        "redacted_content": file_record.redacted_content,
         "entities": [
             {
                 "text": e.entity_text,

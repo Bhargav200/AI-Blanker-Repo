@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     TESSERACT_CMD: Optional[str] = None # Path to tesseract executable
     
     # NLP
-    SPACY_MODEL: str = "en_core_web_trf"
+    SPACY_MODEL: str = "en_core_web_sm"
     
     # Security
     SECRET_KEY: str = "your-secret-key-here"
