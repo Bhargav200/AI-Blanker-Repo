@@ -155,6 +155,26 @@ def get_file_details(file_id: int, db: Session = Depends(get_db)):
         ]
     }
 
+from core.evaluation.metrics import EvaluationMetrics
+from core.compliance.mapper import ComplianceMapper
+
+@app.get("/jobs/{job_id}/compliance")
+def get_job_compliance(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    mapper = ComplianceMapper()
+    summary = mapper.get_summary(job.compliance_profile)
+    return summary
+
+@app.get("/evaluation/metrics")
+def get_evaluation_metrics():
+    eval_metrics = EvaluationMetrics()
+    # In a real scenario, this would compare against ground truth
+    # For MVP, we return calculated metrics from the module
+    return eval_metrics.calculate([], [])
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

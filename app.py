@@ -13,7 +13,7 @@ st.title("🧩 AI PII Redactor for Public Datasets")
 st.markdown("Safely sanitize your datasets for AI/LLM training.")
 
 # Sidebar for navigation
-menu = ["Home", "New Redaction Job", "Job History", "API Access"]
+menu = ["Home", "New Redaction Job", "Job History", "Compliance Summary", "Evaluation Report", "API Access"]
 choice = st.sidebar.selectbox("Navigation", menu)
 
 if choice == "Home":
@@ -131,6 +131,49 @@ elif choice == "Job History":
             st.write("No active jobs. Start a new one!")
     except Exception as e:
         st.error(f"Error fetching job history: {str(e)}")
+
+elif choice == "Compliance Summary":
+    st.subheader("🛡️ Compliance Summary")
+    if 'current_job_id' in st.session_state:
+        job_id = st.session_state.current_job_id
+        try:
+            response = requests.get(f"{BASE_URL}/jobs/{job_id}/compliance")
+            if response.status_code == 200:
+                summary = response.json()
+                st.markdown(f"### Profile: {summary['name']}")
+                st.write(summary['description'])
+                
+                st.markdown("#### Alignment Mapping")
+                df = pd.DataFrame(summary['mappings'])
+                st.table(df)
+            else:
+                st.warning("Could not fetch compliance summary for the current job.")
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+    else:
+        st.info("Run a redaction job first to see the compliance mapping.")
+
+elif choice == "Evaluation Report":
+    st.subheader("📊 Redaction Accuracy Report")
+    try:
+        response = requests.get(f"{BASE_URL}/evaluation/metrics")
+        if response.status_code == 200:
+            metrics = response.json()
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Precision", f"{metrics['precision']*100:.1f}%")
+            col2.metric("Recall", f"{metrics['recall']*100:.1f}%")
+            col3.metric("F1 Score", f"{metrics['f1_score']*100:.1f}%")
+            
+            st.markdown("#### Confusion Matrix (Entity Level)")
+            cm_data = []
+            for entity, counts in metrics['confusion_matrix'].items():
+                cm_data.append({"Entity": entity, **counts})
+            st.table(pd.DataFrame(cm_data))
+        else:
+            st.error("Error fetching evaluation metrics.")
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
 
 elif choice == "API Access":
     st.subheader("🔗 API Documentation")
