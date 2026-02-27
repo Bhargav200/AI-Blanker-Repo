@@ -151,13 +151,22 @@ elif choice == "Job History":
                                     try:
                                         # Fetch visual redacted image as bytes
                                         visual_res = requests.get(f"{BASE_URL}/files/{f['id']}/visual")
-                                        if visual_res.status_code == 200 and len(visual_res.content) > 0:
-                                            st.image(visual_res.content, use_container_width=True)
-                                            st.success(f"Loaded visual ({len(visual_res.content)} bytes)")
+                                    if visual_res.status_code == 200 and len(visual_res.content) > 0:
+                                        st.image(visual_res.content, use_container_width=True)
+                                        st.success(f"Loaded visual ({len(visual_res.content)} bytes)")
+                                    else:
+                                        red_dl = requests.get(f"{BASE_URL}/files/{f['id']}/download/redacted")
+                                        if red_dl.status_code == 200 and len(red_dl.content) > 0:
+                                            ct = red_dl.headers.get('Content-Type', '')
+                                            if ct.startswith('image/'):
+                                                st.image(red_dl.content, use_container_width=True)
+                                                st.success(f"Loaded redacted ({len(red_dl.content)} bytes)")
+                                            else:
+                                                st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
                                         else:
-                                            st.error(f"Failed to load redacted image (Status: {visual_res.status_code}, Size: {len(visual_res.content) if visual_res else 'N/A'})")
+                                            st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
                                     except Exception as e:
-                                        st.error(f"Error loading redacted: {str(e)}")
+                                    st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
                                 
                                 st.markdown("#### Detected Entities")
                                 if file_details.get('entities'):
