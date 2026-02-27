@@ -146,27 +146,55 @@ elif choice == "Job History":
                                     except Exception as e:
                                         st.text_area("Original", file_details.get('raw_content', ''), height=300, key=f"raw_{f['id']}")
                                     
+                                    # Add download button for original
+                                    try:
+                                        dl_res = requests.get(f"{BASE_URL}/files/{f['id']}/download/original")
+                                        if dl_res.status_code == 200:
+                                            st.download_button(
+                                                label="Download Original",
+                                                data=dl_res.content,
+                                                file_name=f['filename'],
+                                                mime=dl_res.headers.get('Content-Type', 'application/octet-stream'),
+                                                key=f"dl_orig_{f['id']}"
+                                            )
+                                    except:
+                                        pass
+                                    
                                 with col2:
                                     st.markdown("**After (Redacted Result)**")
                                     try:
                                         # Fetch visual redacted image as bytes
                                         visual_res = requests.get(f"{BASE_URL}/files/{f['id']}/visual")
-                                    if visual_res.status_code == 200 and len(visual_res.content) > 0:
-                                        st.image(visual_res.content, use_container_width=True)
-                                        st.success(f"Loaded visual ({len(visual_res.content)} bytes)")
-                                    else:
-                                        red_dl = requests.get(f"{BASE_URL}/files/{f['id']}/download/redacted")
-                                        if red_dl.status_code == 200 and len(red_dl.content) > 0:
-                                            ct = red_dl.headers.get('Content-Type', '')
-                                            if ct.startswith('image/'):
-                                                st.image(red_dl.content, use_container_width=True)
-                                                st.success(f"Loaded redacted ({len(red_dl.content)} bytes)")
+                                        if visual_res.status_code == 200 and len(visual_res.content) > 0:
+                                            st.image(visual_res.content, use_container_width=True)
+                                            st.success(f"Loaded visual ({len(visual_res.content)} bytes)")
+                                        else:
+                                            red_dl = requests.get(f"{BASE_URL}/files/{f['id']}/download/redacted")
+                                            if red_dl.status_code == 200 and len(red_dl.content) > 0:
+                                                ct = red_dl.headers.get('Content-Type', '')
+                                                if ct.startswith('image/'):
+                                                    st.image(red_dl.content, use_container_width=True)
+                                                    st.success(f"Loaded redacted ({len(red_dl.content)} bytes)")
+                                                else:
+                                                    st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
                                             else:
                                                 st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
-                                        else:
-                                            st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
                                     except Exception as e:
-                                    st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
+                                        st.text_area("Redacted", file_details.get('redacted_content', ''), height=300, key=f"red_{f['id']}")
+                                    
+                                    # Add download button for redacted
+                                    try:
+                                        dl_res = requests.get(f"{BASE_URL}/files/{f['id']}/download/redacted")
+                                        if dl_res.status_code == 200:
+                                            st.download_button(
+                                                label="Download Redacted",
+                                                data=dl_res.content,
+                                                file_name=f"redacted_{f['filename']}",
+                                                mime=dl_res.headers.get('Content-Type', 'application/octet-stream'),
+                                                key=f"dl_red_{f['id']}"
+                                            )
+                                    except:
+                                        pass
                                 
                                 st.markdown("#### Detected Entities")
                                 if file_details.get('entities'):
